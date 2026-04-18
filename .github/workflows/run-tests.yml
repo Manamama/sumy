@@ -9,18 +9,18 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
         with:
-          python-version: "3.11"
+          enable-cache: true
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install ruff
+      - name: Set up Python
+        run: uv python install 3.11
 
-      - run: ruff check --output-format=github .
+      - name: Lint with ruff
+        run: uvx ruff check --output-format=github .
 
   tests:
     timeout-minutes: 20
@@ -28,44 +28,45 @@ jobs:
       fail-fast: false
       matrix:
         os: ["ubuntu-latest"]
-        python-version: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
         include:
-#          - os: "ubuntu-latest"
-#            python-version: "pypy3.10" Failed to build JPype1
-#          - os: "ubuntu-latest"
-#            python-version: "graalpy-23.1" Failed to build JPype1
-#          - os: "windows-2022"
-#            python-version: "3.10"
+          - os: "ubuntu-latest"
+            python-version: "pypy3.10"
+          - os: "ubuntu-latest"
+            python-version: "graalpy"
           - os: "macos-latest"
-            python-version: "3.10"
-          - os: "macos-11"
-            python-version: "3.10"
+            python-version: "3.12"
+          - os: "windows-latest"
+            python-version: "3.12"
 
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
 
       - name: "Install lxml dev dependencies"
-        if: ${{ startsWith(matrix.python-version, 'graalpy') }}
+        if: ${{ startsWith(matrix.python-version, 'graalpy') && runner.os == 'Linux' }}
         run: sudo apt-get install libxml2-dev libxslt-dev python3-dev
 
       - name: "Install dependencies"
         run: |
-          python -m pip install --upgrade pip wheel setuptools
-          pip install .
-          # https://stackoverflow.com/a/69439779/2988107
-          pip install --upgrade numpy tinysegmenter jieba konlpy hebrew_tokenizer "tweepy<4.0.0" greek-stemmer-pos "lxml[html_clean]"
-          python -c "import nltk; nltk.download('punkt')"
-          pip install --upgrade pytest codecov pytest-cov
+          uv sync --frozen --all-extras
+          uv run python -c "import nltk; nltk.download('punkt'); nltk.download('punkt_tab')"
 
-      - run: pytest tests
+      - run: uv run pytest tests --cov=sumy --cov-report=xml
         env:
           CI: 1
           PYTHONDONTWRITEBYTECODE: 1
 
-      - run: codecov
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v6
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false

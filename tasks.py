@@ -10,18 +10,18 @@ def clean(context):
 
 @task(clean, default=True)
 def test(context):
-    context.run("pytest")
+    context.run("uv run pytest")
 
 
 @task(test)
 def install(context):
-    context.run("python setup.py develop")
+    context.run("uv sync --all-extras")
 
 
 @task(test)
 def release(context):
-    context.run("python setup.py register sdist bdist_wheel")
-    context.run("twine upload dist/*")
+    context.run("uv build")
+    context.run("uv publish")
 
 
 @task(test)
@@ -31,5 +31,5 @@ def bump(context, version="patch"):
 
 @task
 def docker(context):
-    context.run("docker build --no-cache --rm=true --tag misobelica/sumy:latest -t misobelica/sumy:0.11.0 .")
+    context.run("docker build --no-cache --rm=true --tag misobelica/sumy:latest -t misobelica/sumy:0.12.0 .")
     context.run("docker push misobelica/sumy --all-tags")
